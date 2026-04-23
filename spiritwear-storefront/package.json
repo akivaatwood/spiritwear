@@ -7,13 +7,13 @@
   "keywords": [
     "medusa-storefront"
   ],
-  "scripts": {
-    "dev": "next dev --turbopack -p 8000",
-    "build": "next build",
-    "start": "next start -p 8000",
-    "lint": "next lint",
-    "analyze": "ANALYZE=true next build"
-  },
+ "scripts": {
+  "dev": "next dev --turbopack",
+  "build": "next build",
+  "start": "next start",
+  "lint": "next lint",
+  "analyze": "ANALYZE=true next build"
+},
   "dependencies": {
     "@headlessui/react": "^2.2.0",
     "@medusajs/icons": "latest",
