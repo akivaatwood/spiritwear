@@ -32,7 +32,7 @@ const Hero = () => {
             Blah Blah Blah t-shirts blah blah blah hoodies blah blah blah merch
             for individuals and schools.
 
-            Fundraising opportunities for schools and organizations. Custom designs and bulk ordering for teams, clubs, and events.
+            Fundraising opportunities for schools and organizations. Custom designs and bulk ordering for teams, clubs, and events. Make Money
           </Heading>
         </span>
 
