@@ -19,16 +19,33 @@ type DragTarget = "mascot" | "text"
 type DragState = {
   target: DragTarget
   side: OverlaySide
+  mode: "drag" | "pinch"
   startX: number
   startY: number
   startOffsetX: number
   startOffsetY: number
+  startScale?: number
+  startDistance?: number
 }
 
 function getSideForIndex(index: number): OverlaySide | null {
   if (index === 0) return "front"
   if (index === 1) return "back"
   return null
+}
+
+function getTouchDistance(touches: TouchList) {
+  if (touches.length < 2) {
+    return 0
+  }
+
+  const first = touches[0]
+  const second = touches[1]
+
+  return Math.hypot(
+    second.clientX - first.clientX,
+    second.clientY - first.clientY
+  )
 }
 
 export default function MascotImageGallery({ images }: Props) {
@@ -59,8 +76,67 @@ export default function MascotImageGallery({ images }: Props) {
     if (!dragState) return
 
     const handleMouseMove = (event: MouseEvent) => {
+      if (dragState.mode !== "drag") {
+        return
+      }
+
       const deltaX = event.clientX - dragState.startX
       const deltaY = event.clientY - dragState.startY
+
+      setActiveSide(dragState.side)
+
+      if (dragState.target === "mascot") {
+        setOffset(dragState.startOffsetX + deltaX, dragState.startOffsetY + deltaY)
+        return
+      }
+
+      setTextOffset(
+        dragState.startOffsetX + deltaX,
+        dragState.startOffsetY + deltaY
+      )
+    }
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (dragState.mode === "pinch" && event.touches.length >= 2) {
+        if (
+          typeof dragState.startScale === "undefined" ||
+          typeof dragState.startDistance === "undefined" ||
+          !dragState.startDistance
+        ) {
+          return
+        }
+
+        event.preventDefault()
+
+        const distance = getTouchDistance(event.touches)
+        const nextScale =
+          dragState.startScale * (distance / dragState.startDistance)
+
+        setActiveSide(dragState.side)
+
+        if (dragState.target === "mascot") {
+          setScale(nextScale)
+          return
+        }
+
+        setTextScale(nextScale)
+        return
+      }
+
+      const touch = event.touches[0]
+
+      if (!touch) {
+        return
+      }
+
+      event.preventDefault()
+
+      if (dragState.mode !== "drag") {
+        return
+      }
+
+      const deltaX = touch.clientX - dragState.startX
+      const deltaY = touch.clientY - dragState.startY
 
       setActiveSide(dragState.side)
 
@@ -81,12 +157,18 @@ export default function MascotImageGallery({ images }: Props) {
 
     window.addEventListener("mousemove", handleMouseMove)
     window.addEventListener("mouseup", stopDragging)
+    window.addEventListener("touchmove", handleTouchMove, { passive: false })
+    window.addEventListener("touchend", stopDragging)
+    window.addEventListener("touchcancel", stopDragging)
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove)
       window.removeEventListener("mouseup", stopDragging)
+      window.removeEventListener("touchmove", handleTouchMove)
+      window.removeEventListener("touchend", stopDragging)
+      window.removeEventListener("touchcancel", stopDragging)
     }
-  }, [dragState, setActiveSide, setOffset, setTextOffset])
+  }, [dragState, setActiveSide, setOffset, setScale, setTextOffset, setTextScale])
 
   useEffect(() => {
     setDragState(null)
@@ -165,6 +247,7 @@ export default function MascotImageGallery({ images }: Props) {
     setDragState({
       target: "mascot",
       side: selectedSide,
+      mode: "drag",
       startX: event.clientX,
       startY: event.clientY,
       startOffsetX: selectedSideState.offsetX,
@@ -183,8 +266,95 @@ export default function MascotImageGallery({ images }: Props) {
     setDragState({
       target: "text",
       side: selectedSide,
+      mode: "drag",
       startX: event.clientX,
       startY: event.clientY,
+      startOffsetX: selectedSideState.text.offsetX,
+      startOffsetY: selectedSideState.text.offsetY,
+    })
+  }
+
+  const startMascotTouchDragging = (event: React.TouchEvent<HTMLImageElement>) => {
+    if (!selectedSide || !selectedSideState) {
+      return
+    }
+
+    if (event.touches.length >= 2) {
+      event.preventDefault()
+      setActiveSide(selectedSide)
+
+      setDragState({
+        target: "mascot",
+        side: selectedSide,
+        mode: "pinch",
+        startX: 0,
+        startY: 0,
+        startOffsetX: selectedSideState.offsetX,
+        startOffsetY: selectedSideState.offsetY,
+        startScale: selectedSideState.scale,
+        startDistance: getTouchDistance(event.touches),
+      })
+      return
+    }
+
+    const touch = event.touches[0]
+
+    if (!touch) {
+      return
+    }
+
+    event.preventDefault()
+    setActiveSide(selectedSide)
+
+    setDragState({
+      target: "mascot",
+      side: selectedSide,
+      mode: "drag",
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startOffsetX: selectedSideState.offsetX,
+      startOffsetY: selectedSideState.offsetY,
+    })
+  }
+
+  const startTextTouchDragging = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!selectedSide || !selectedSideState?.text) {
+      return
+    }
+
+    if (event.touches.length >= 2) {
+      event.preventDefault()
+      setActiveSide(selectedSide)
+
+      setDragState({
+        target: "text",
+        side: selectedSide,
+        mode: "pinch",
+        startX: 0,
+        startY: 0,
+        startOffsetX: selectedSideState.text.offsetX,
+        startOffsetY: selectedSideState.text.offsetY,
+        startScale: selectedSideState.text.scale,
+        startDistance: getTouchDistance(event.touches),
+      })
+      return
+    }
+
+    const touch = event.touches[0]
+
+    if (!touch) {
+      return
+    }
+
+    event.preventDefault()
+    setActiveSide(selectedSide)
+
+    setDragState({
+      target: "text",
+      side: selectedSide,
+      mode: "drag",
+      startX: touch.clientX,
+      startY: touch.clientY,
       startOffsetX: selectedSideState.text.offsetX,
       startOffsetY: selectedSideState.text.offsetY,
     })
@@ -210,10 +380,12 @@ export default function MascotImageGallery({ images }: Props) {
                 transformOrigin: "center center",
                 pointerEvents: "auto",
                 userSelect: "none",
+                touchAction: "none",
               }}
               ref={overlayImageRef}
               draggable={false}
               onMouseDown={startMascotDragging}
+              onTouchStart={startMascotTouchDragging}
             />
           </div>
         ) : null}
@@ -236,8 +408,10 @@ export default function MascotImageGallery({ images }: Props) {
                 color:
                   selectedSideState.text.color ||
                   mascotOverlayConstants.DEFAULT_TEXT_COLOR,
+                touchAction: "none",
               }}
               onMouseDown={startTextDragging}
+              onTouchStart={startTextTouchDragging}
             >
               {selectedSideState.text.value}
             </div>
