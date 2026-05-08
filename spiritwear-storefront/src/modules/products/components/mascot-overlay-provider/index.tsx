@@ -2,9 +2,15 @@
 
 import { createContext, useContext, useMemo, useState } from "react"
 
-export type MascotOverlay = {
-  mascot_name: string
+export type OverlayLibrary = "organization" | "design"
+export type OverlayType = "mascot" | "design"
+
+export type ImageOverlay = {
+  overlay_type: OverlayType
+  overlay_name: string
   image_url: string
+  source_id?: string
+  source_label?: string | null
 }
 
 export type TextOverlay = {
@@ -18,7 +24,7 @@ export type TextOverlay = {
 export type OverlaySide = "front" | "back"
 
 type SideOverlayState = {
-  mascot: MascotOverlay | null
+  imageOverlay: ImageOverlay | null
   scale: number
   offsetX: number
   offsetY: number
@@ -27,6 +33,7 @@ type SideOverlayState = {
 
 type MascotOverlayState = {
   activeSide: OverlaySide
+  overlayLibrary: OverlayLibrary
   sides: Record<OverlaySide, SideOverlayState>
 }
 
@@ -34,10 +41,12 @@ type MascotOverlayContextType = {
   overlay: MascotOverlayState
   currentSide: SideOverlayState
   activeSide: OverlaySide
+  overlayLibrary: OverlayLibrary
+  setOverlayLibrary: (library: OverlayLibrary) => void
   setActiveSide: (side: OverlaySide) => void
-  isSelected: (mascot: MascotOverlay | null) => boolean
-  selectMascot: (mascot: MascotOverlay | null) => void
-  toggleMascot: (mascot: MascotOverlay | null) => void
+  isSelected: (imageOverlay: ImageOverlay | null) => boolean
+  selectOverlay: (imageOverlay: ImageOverlay | null) => void
+  toggleOverlay: (imageOverlay: ImageOverlay | null) => void
   setScale: (value: number) => void
   setOffset: (offsetX: number, offsetY: number) => void
   moveLeft: () => void
@@ -81,7 +90,7 @@ export const mascotOverlayConstants = {
 
 function createEmptySideState(): SideOverlayState {
   return {
-    mascot: null,
+    imageOverlay: null,
     scale: DEFAULT_SCALE,
     offsetX: DEFAULT_OFFSET_X,
     offsetY: DEFAULT_OFFSET_Y,
@@ -109,6 +118,7 @@ export function MascotOverlayProvider({
 }) {
   const [overlay, setOverlay] = useState<MascotOverlayState>({
     activeSide: "front",
+    overlayLibrary: "organization",
     sides: {
       front: createEmptySideState(),
       back: createEmptySideState(),
@@ -122,6 +132,20 @@ export function MascotOverlayProvider({
       overlay,
       currentSide,
       activeSide: overlay.activeSide,
+      overlayLibrary: overlay.overlayLibrary,
+
+      setOverlayLibrary: (library) => {
+        setOverlay((prev) => {
+          if (prev.overlayLibrary === library) {
+            return prev
+          }
+
+          return {
+            ...prev,
+            overlayLibrary: library,
+          }
+        })
+      },
 
       setActiveSide: (side) => {
         setOverlay((prev) => {
@@ -136,20 +160,21 @@ export function MascotOverlayProvider({
         })
       },
 
-      isSelected: (mascot) => {
-        if (!mascot || !currentSide.mascot) return false
+      isSelected: (imageOverlay) => {
+        if (!imageOverlay || !currentSide.imageOverlay) return false
 
         return (
-          currentSide.mascot.mascot_name === mascot.mascot_name &&
-          currentSide.mascot.image_url === mascot.image_url
+          currentSide.imageOverlay.overlay_type === imageOverlay.overlay_type &&
+          currentSide.imageOverlay.overlay_name === imageOverlay.overlay_name &&
+          currentSide.imageOverlay.image_url === imageOverlay.image_url
         )
       },
 
-      selectMascot: (mascot) => {
+      selectOverlay: (imageOverlay) => {
         setOverlay((prev) =>
           updateActiveSide(prev, (side) => ({
             ...side,
-            mascot,
+            imageOverlay,
             scale: DEFAULT_SCALE,
             offsetX: DEFAULT_OFFSET_X,
             offsetY: DEFAULT_OFFSET_Y,
@@ -157,18 +182,19 @@ export function MascotOverlayProvider({
         )
       },
 
-      toggleMascot: (mascot) => {
+      toggleOverlay: (imageOverlay) => {
         setOverlay((prev) =>
           updateActiveSide(prev, (side) => {
             if (
-              mascot &&
-              side.mascot &&
-              side.mascot.mascot_name === mascot.mascot_name &&
-              side.mascot.image_url === mascot.image_url
+              imageOverlay &&
+              side.imageOverlay &&
+              side.imageOverlay.overlay_type === imageOverlay.overlay_type &&
+              side.imageOverlay.overlay_name === imageOverlay.overlay_name &&
+              side.imageOverlay.image_url === imageOverlay.image_url
             ) {
               return {
                 ...side,
-                mascot: null,
+                imageOverlay: null,
                 scale: DEFAULT_SCALE,
                 offsetX: DEFAULT_OFFSET_X,
                 offsetY: DEFAULT_OFFSET_Y,
@@ -177,7 +203,7 @@ export function MascotOverlayProvider({
 
             return {
               ...side,
-              mascot,
+              imageOverlay,
               scale: DEFAULT_SCALE,
               offsetX: DEFAULT_OFFSET_X,
               offsetY: DEFAULT_OFFSET_Y,
@@ -441,12 +467,32 @@ export function MascotOverlayProvider({
           const side = overlay.sides[sideName]
           const prefix = sideName === "front" ? "front" : "back"
 
-          if (side.mascot) {
-            metadata[`${prefix}_mascot_name`] = side.mascot.mascot_name
-            metadata[`${prefix}_mascot_image_url`] = side.mascot.image_url
-            metadata[`${prefix}_mascot_scale`] = side.scale
-            metadata[`${prefix}_mascot_offset_x`] = side.offsetX
-            metadata[`${prefix}_mascot_offset_y`] = side.offsetY
+          if (side.imageOverlay) {
+            metadata[`${prefix}_overlay_type`] = side.imageOverlay.overlay_type
+            metadata[`${prefix}_overlay_name`] = side.imageOverlay.overlay_name
+            metadata[`${prefix}_overlay_image_url`] = side.imageOverlay.image_url
+            metadata[`${prefix}_overlay_source_id`] =
+              side.imageOverlay.source_id || null
+            metadata[`${prefix}_overlay_source_label`] =
+              side.imageOverlay.source_label || null
+            metadata[`${prefix}_overlay_scale`] = side.scale
+            metadata[`${prefix}_overlay_offset_x`] = side.offsetX
+            metadata[`${prefix}_overlay_offset_y`] = side.offsetY
+
+            if (side.imageOverlay.overlay_type === "mascot") {
+              metadata[`${prefix}_mascot_name`] = side.imageOverlay.overlay_name
+              metadata[`${prefix}_mascot_image_url`] = side.imageOverlay.image_url
+              metadata[`${prefix}_mascot_scale`] = side.scale
+              metadata[`${prefix}_mascot_offset_x`] = side.offsetX
+              metadata[`${prefix}_mascot_offset_y`] = side.offsetY
+            }
+
+            if (side.imageOverlay.overlay_type === "design") {
+              metadata[`${prefix}_design_overlay_name`] =
+                side.imageOverlay.overlay_name
+              metadata[`${prefix}_design_overlay_image_url`] =
+                side.imageOverlay.image_url
+            }
           }
 
           if (side.text?.value.trim()) {

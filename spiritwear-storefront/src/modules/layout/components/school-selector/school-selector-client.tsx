@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
-  clearSelectedSchool,
-  loadSelectedSchool,
-  onSelectedSchoolChange,
-  saveSelectedSchool,
-  SelectedSchool,
-} from "../../../../lib/school-selection"
+  clearSelectedOrganization,
+  loadSelectedOrganization,
+  onSelectedOrganizationChange,
+  saveSelectedOrganization,
+  SelectedOrganization,
+  OrganizationType,
+} from "../../../../lib/organization-selection"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL!
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY!
@@ -24,16 +25,17 @@ type CityType = {
   city_name: string
 }
 
-type SchoolType = {
+type OrganizationRecord = {
   id: string
-  school_name: string
+  organization_name: string
+  organization_type: OrganizationType
   slug: string
   city_id?: string
-  level?: string
+  level?: string | null
 }
 
 async function getStates() {
-  const res = await fetch(`${BACKEND_URL}/store/school-directory/states`, {
+  const res = await fetch(`${BACKEND_URL}/store/organization-directory/states`, {
     headers: {
       "x-publishable-api-key": PUBLISHABLE_KEY,
     },
@@ -44,7 +46,7 @@ async function getStates() {
 
 async function getCities(stateId: string) {
   const res = await fetch(
-    `${BACKEND_URL}/store/school-directory/cities?state_id=${encodeURIComponent(stateId)}`,
+    `${BACKEND_URL}/store/organization-directory/cities?state_id=${encodeURIComponent(stateId)}`,
     {
       headers: {
         "x-publishable-api-key": PUBLISHABLE_KEY,
@@ -55,16 +57,21 @@ async function getCities(stateId: string) {
   return res.json()
 }
 
-async function getSchools(cityId: string) {
+async function getOrganizations(cityId: string, organizationType: OrganizationType) {
+  const params = new URLSearchParams({
+    city_id: cityId,
+    organization_type: organizationType,
+  })
+
   const res = await fetch(
-    `${BACKEND_URL}/store/school-directory/schools?city_id=${encodeURIComponent(cityId)}`,
+    `${BACKEND_URL}/store/organization-directory/organizations?${params.toString()}`,
     {
       headers: {
         "x-publishable-api-key": PUBLISHABLE_KEY,
       },
     }
   )
-  if (!res.ok) throw new Error("Failed to fetch schools")
+  if (!res.ok) throw new Error("Failed to fetch organizations")
   return res.json()
 }
 
@@ -74,8 +81,8 @@ function readCartIdFromCookie() {
   return match ? decodeURIComponent(match[1]) : null
 }
 
-async function syncSelectedSchoolToCart(
-  school: SelectedSchool | null
+async function syncSelectedOrganizationToCart(
+  organization: SelectedOrganization | null
 ) {
   const cartId = readCartIdFromCookie()
   if (!cartId) return
@@ -87,13 +94,21 @@ async function syncSelectedSchoolToCart(
       "x-publishable-api-key": PUBLISHABLE_KEY,
     },
     body: JSON.stringify({
-      metadata: school
+      metadata: organization
         ? {
-            selected_school_id: school.id,
-            selected_school_name: school.school_name,
-            selected_school_slug: school.slug,
+            selected_organization_id: organization.id,
+            selected_organization_name: organization.organization_name,
+            selected_organization_slug: organization.slug,
+            selected_organization_type: organization.organization_type,
+            selected_school_id: organization.id,
+            selected_school_name: organization.organization_name,
+            selected_school_slug: organization.slug,
           }
         : {
+            selected_organization_id: null,
+            selected_organization_name: null,
+            selected_organization_slug: null,
+            selected_organization_type: null,
             selected_school_id: null,
             selected_school_name: null,
             selected_school_slug: null,
@@ -102,33 +117,54 @@ async function syncSelectedSchoolToCart(
   })
 }
 
+function getOrganizationTypeLabel(type: OrganizationType) {
+  switch (type) {
+    case "fire_department":
+      return "Fire Department"
+    case "police_department":
+      return "Police Department"
+    default:
+      return "School"
+  }
+}
+
 export default function SchoolSelectorClient() {
   const router = useRouter()
 
   const [states, setStates] = useState<StateType[]>([])
   const [cities, setCities] = useState<CityType[]>([])
-  const [schools, setSchools] = useState<SchoolType[]>([])
+  const [organizations, setOrganizations] = useState<OrganizationRecord[]>([])
+  const [selectedType, setSelectedType] = useState<OrganizationType>("school")
   const [selectedState, setSelectedState] = useState("")
   const [selectedCity, setSelectedCity] = useState("")
-  const [selectedSchoolId, setSelectedSchoolId] = useState("")
-  const [selectedSchool, setSelectedSchool] = useState<SelectedSchool | null>(null)
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState("")
+  const [selectedOrganization, setSelectedOrganization] =
+    useState<SelectedOrganization | null>(null)
 
   useEffect(() => {
     getStates().then((data) => setStates(data.states || [])).catch(console.error)
 
-    const saved = loadSelectedSchool()
+    const saved = loadSelectedOrganization()
     if (saved) {
-      setSelectedSchool(saved)
+      setSelectedOrganization(saved)
+      setSelectedType(saved.organization_type || "school")
       setSelectedState(saved.state_id || "")
       setSelectedCity(saved.city_id || "")
-      setSelectedSchoolId(saved.id || "")
+      setSelectedOrganizationId(saved.id || "")
     }
 
-    const unsubscribe = onSelectedSchoolChange((school) => {
-      setSelectedSchool(school)
-      setSelectedState(school?.state_id || "")
-      setSelectedCity(school?.city_id || "")
-      setSelectedSchoolId(school?.id || "")
+    const unsubscribe = onSelectedOrganizationChange((organization) => {
+      if (!organization) {
+        setSelectedOrganization(null)
+        setSelectedOrganizationId("")
+        return
+      }
+
+      setSelectedOrganization(organization)
+      setSelectedType(organization.organization_type || "school")
+      setSelectedState(organization.state_id || "")
+      setSelectedCity(organization.city_id || "")
+      setSelectedOrganizationId(organization.id || "")
     })
 
     return unsubscribe
@@ -147,71 +183,91 @@ export default function SchoolSelectorClient() {
 
   useEffect(() => {
     if (!selectedCity) {
-      setSchools([])
+      setOrganizations([])
       return
     }
 
-    getSchools(selectedCity)
-      .then((data) => setSchools(data.schools || []))
+    getOrganizations(selectedCity, selectedType)
+      .then((data) => setOrganizations(data.organizations || []))
       .catch(console.error)
-  }, [selectedCity])
+  }, [selectedCity, selectedType])
 
-  async function handleSchoolChange(schoolId: string) {
-    setSelectedSchoolId(schoolId)
+  async function handleOrganizationChange(organizationId: string) {
+    setSelectedOrganizationId(organizationId)
 
-    const school = schools.find((s) => s.id === schoolId) || null
-    if (!school) return
+    const organization =
+      organizations.find((item) => item.id === organizationId) || null
+    if (!organization) return
 
-    const normalized: SelectedSchool = {
-      id: school.id,
-      school_name: school.school_name,
-      slug: school.slug,
+    const normalized: SelectedOrganization = {
+      id: organization.id,
+      organization_name: organization.organization_name,
+      slug: organization.slug,
+      organization_type: organization.organization_type,
       city_id: selectedCity,
       state_id: selectedState,
-      level: school.level,
+      level: organization.level || undefined,
     }
 
-    setSelectedSchool(normalized)
-    saveSelectedSchool(normalized)
+    setSelectedOrganization(normalized)
+    saveSelectedOrganization(normalized)
 
     try {
-      await syncSelectedSchoolToCart(normalized)
+      await syncSelectedOrganizationToCart(normalized)
     } catch (e) {
-      console.error("Failed syncing selected school to cart", e)
+      console.error("Failed syncing selected organization to cart", e)
     }
 
     router.refresh()
   }
 
-  async function handleClearSchool() {
+  async function handleClearOrganization() {
     setSelectedState("")
     setSelectedCity("")
-    setSelectedSchoolId("")
-    setSelectedSchool(null)
+    setSelectedOrganizationId("")
+    setSelectedOrganization(null)
     setCities([])
-    setSchools([])
+    setOrganizations([])
 
-    clearSelectedSchool()
+    clearSelectedOrganization()
 
     try {
-      await syncSelectedSchoolToCart(null)
+      await syncSelectedOrganizationToCart(null)
     } catch (e) {
-      console.error("Failed clearing school from cart metadata", e)
+      console.error("Failed clearing organization from cart metadata", e)
     }
 
     router.refresh()
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-h-9 shrink-0 items-center justify-end gap-2">
       <select
-        className="rounded border px-2 py-1 text-sm"
+        className="h-9 rounded border px-2 text-sm"
+        value={selectedType}
+        onChange={(e) => {
+          setSelectedType(e.target.value as OrganizationType)
+          setSelectedOrganizationId("")
+          setSelectedOrganization(null)
+          clearSelectedOrganization()
+          void syncSelectedOrganizationToCart(null)
+        }}
+      >
+        <option value="school">School</option>
+        <option value="fire_department">Fire Department</option>
+        <option value="police_department">Police Department</option>
+      </select>
+
+      <select
+        className="h-9 rounded border px-2 text-sm"
         value={selectedState}
         onChange={(e) => {
           setSelectedState(e.target.value)
           setSelectedCity("")
-          setSelectedSchoolId("")
-          setSelectedSchool(null)
+          setSelectedOrganizationId("")
+          setSelectedOrganization(null)
+          clearSelectedOrganization()
+          void syncSelectedOrganizationToCart(null)
         }}
       >
         <option value="">State</option>
@@ -223,12 +279,14 @@ export default function SchoolSelectorClient() {
       </select>
 
       <select
-        className="rounded border px-2 py-1 text-sm"
+        className="h-9 rounded border px-2 text-sm"
         value={selectedCity}
         onChange={(e) => {
           setSelectedCity(e.target.value)
-          setSelectedSchoolId("")
-          setSelectedSchool(null)
+          setSelectedOrganizationId("")
+          setSelectedOrganization(null)
+          clearSelectedOrganization()
+          void syncSelectedOrganizationToCart(null)
         }}
         disabled={!selectedState}
       >
@@ -241,23 +299,24 @@ export default function SchoolSelectorClient() {
       </select>
 
       <select
-        className="rounded border px-2 py-1 text-sm"
-        value={selectedSchoolId}
-        onChange={(e) => handleSchoolChange(e.target.value)}
+        className="h-9 rounded border px-2 text-sm"
+        value={selectedOrganizationId}
+        onChange={(e) => handleOrganizationChange(e.target.value)}
         disabled={!selectedCity}
       >
-        <option value="">School</option>
-        {schools.map((school) => (
-          <option key={school.id} value={school.id}>
-            {school.school_name}
+        <option value="">{getOrganizationTypeLabel(selectedType)}</option>
+        {organizations.map((organization) => (
+          <option key={organization.id} value={organization.id}>
+            {organization.organization_name}
           </option>
         ))}
       </select>
 
       <button
         type="button"
-        onClick={handleClearSchool}
-        className="rounded border px-3 py-1 text-sm"
+        onClick={handleClearOrganization}
+        className="inline-flex h-9 items-center rounded border px-3 text-sm"
+        disabled={!selectedOrganization}
       >
         Clear
       </button>

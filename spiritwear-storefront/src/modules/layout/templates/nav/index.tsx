@@ -11,10 +11,8 @@ import SchoolSelector from "../../components/school-selector"
 
 const NAV_MENU_ITEMS = {
   Home: "/",
-  Schools: "/schools",
+  Organizations: "/organizations",
   Store: "/store",
-  Account: "/account",
-  Cart: "/cart",
 }
 
 export default async function Nav() {
@@ -49,8 +47,6 @@ export default async function Nav() {
           </div>
 
           <div className="flex items-center gap-x-6 h-full flex-1 basis-0 justify-end">
-            <SchoolSelector />
-
             <div className="hidden small:flex items-center gap-x-6 h-full">
               <LocalizedClientLink
                 className="hover:text-ui-fg-base"
@@ -78,16 +74,22 @@ export default async function Nav() {
         </nav>
 
         <div className="border-t border-ui-border-base bg-white">
-          <div className="content-container flex flex-wrap items-center gap-6 py-3 text-sm">
-            {Object.entries(NAV_MENU_ITEMS).map(([name, href]) => (
-              <LocalizedClientLink
-                key={name}
-                href={href}
-                className="font-medium hover:text-ui-fg-base"
-              >
-                {name}
-              </LocalizedClientLink>
-            ))}
+          <div className="content-container flex items-center justify-between gap-4 overflow-x-auto py-3 text-sm">
+            <div className="flex min-h-9 shrink-0 items-center gap-6">
+              {Object.entries(NAV_MENU_ITEMS).map(([name, href]) => (
+                <LocalizedClientLink
+                  key={name}
+                  href={href}
+                  className="inline-flex h-9 items-center font-medium hover:text-ui-fg-base"
+                >
+                  {name}
+                </LocalizedClientLink>
+              ))}
+            </div>
+
+            <div className="flex min-h-9 shrink-0 items-center justify-end">
+              <SchoolSelector />
+            </div>
           </div>
         </div>
       </header>

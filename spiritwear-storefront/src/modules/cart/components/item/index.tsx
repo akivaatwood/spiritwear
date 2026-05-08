@@ -22,6 +22,13 @@ type ItemProps = {
 
 type SideCustomization = {
   label: string
+  overlayType?: string
+  overlayName?: string
+  overlayImageUrl?: string
+  overlaySourceLabel?: string
+  overlayScale?: number
+  overlayOffsetX?: number
+  overlayOffsetY?: number
   mascotName?: string
   mascotImageUrl?: string
   mascotScale?: number
@@ -60,6 +67,25 @@ const Item = ({ item, type = "full", currencyCode }: ItemProps) => {
   const sideCustomizations = useMemo<SideCustomization[]>(() => {
     const front: SideCustomization = {
       label: "Front",
+      overlayType: item.metadata?.front_overlay_type as string | undefined,
+      overlayName:
+        (item.metadata?.front_overlay_name as string | undefined) ||
+        (item.metadata?.front_mascot_name as string | undefined),
+      overlayImageUrl:
+        (item.metadata?.front_overlay_image_url as string | undefined) ||
+        (item.metadata?.front_mascot_image_url as string | undefined),
+      overlaySourceLabel: item.metadata?.front_overlay_source_label as
+        | string
+        | undefined,
+      overlayScale:
+        (item.metadata?.front_overlay_scale as number | undefined) ??
+        (item.metadata?.front_mascot_scale as number | undefined),
+      overlayOffsetX:
+        (item.metadata?.front_overlay_offset_x as number | undefined) ??
+        (item.metadata?.front_mascot_offset_x as number | undefined),
+      overlayOffsetY:
+        (item.metadata?.front_overlay_offset_y as number | undefined) ??
+        (item.metadata?.front_mascot_offset_y as number | undefined),
       mascotName: item.metadata?.front_mascot_name as string | undefined,
       mascotImageUrl: item.metadata?.front_mascot_image_url as string | undefined,
       mascotScale: item.metadata?.front_mascot_scale as number | undefined,
@@ -82,6 +108,25 @@ const Item = ({ item, type = "full", currencyCode }: ItemProps) => {
 
     const back: SideCustomization = {
       label: "Back",
+      overlayType: item.metadata?.back_overlay_type as string | undefined,
+      overlayName:
+        (item.metadata?.back_overlay_name as string | undefined) ||
+        (item.metadata?.back_mascot_name as string | undefined),
+      overlayImageUrl:
+        (item.metadata?.back_overlay_image_url as string | undefined) ||
+        (item.metadata?.back_mascot_image_url as string | undefined),
+      overlaySourceLabel: item.metadata?.back_overlay_source_label as
+        | string
+        | undefined,
+      overlayScale:
+        (item.metadata?.back_overlay_scale as number | undefined) ??
+        (item.metadata?.back_mascot_scale as number | undefined),
+      overlayOffsetX:
+        (item.metadata?.back_overlay_offset_x as number | undefined) ??
+        (item.metadata?.back_mascot_offset_x as number | undefined),
+      overlayOffsetY:
+        (item.metadata?.back_overlay_offset_y as number | undefined) ??
+        (item.metadata?.back_mascot_offset_y as number | undefined),
       mascotName: item.metadata?.back_mascot_name as string | undefined,
       mascotImageUrl: item.metadata?.back_mascot_image_url as string | undefined,
       mascotScale: item.metadata?.back_mascot_scale as number | undefined,
@@ -103,7 +148,7 @@ const Item = ({ item, type = "full", currencyCode }: ItemProps) => {
     }
 
     return [front, back].filter(
-      (side) => side.mascotName || side.overlayText
+      (side) => side.overlayName || side.mascotName || side.overlayText
     )
   }, [item.metadata])
 
@@ -144,32 +189,39 @@ const Item = ({ item, type = "full", currencyCode }: ItemProps) => {
               {side.label} Customization
             </Text>
 
-            {side.mascotName ? (
+            {side.overlayName ? (
               <div className="mt-2 flex items-start gap-3">
-                {side.mascotImageUrl ? (
+                {side.overlayImageUrl ? (
                   <img
-                    src={side.mascotImageUrl}
-                    alt={side.mascotName}
+                    src={side.overlayImageUrl}
+                    alt={side.overlayName}
                     className="h-16 w-16 rounded border object-contain bg-white"
                   />
                 ) : null}
 
                 <div className="flex flex-col gap-1">
                   <Text className="txt-small text-ui-fg-subtle">
-                    Mascot: {side.mascotName}
+                    {side.overlayType === "design" ? "Design Overlay" : "Mascot"}:{" "}
+                    {side.overlayName}
                   </Text>
 
-                  {typeof side.mascotScale !== "undefined" ? (
+                  {side.overlaySourceLabel ? (
                     <Text className="txt-small text-ui-fg-subtle">
-                      Mascot Scale: {side.mascotScale}
+                      Source: {side.overlaySourceLabel}
                     </Text>
                   ) : null}
 
-                  {(typeof side.mascotOffsetX !== "undefined" ||
-                    typeof side.mascotOffsetY !== "undefined") ? (
+                  {typeof side.overlayScale !== "undefined" ? (
                     <Text className="txt-small text-ui-fg-subtle">
-                      Mascot Offset: X {side.mascotOffsetX ?? 0}, Y{" "}
-                      {side.mascotOffsetY ?? 0}
+                      Overlay Scale: {side.overlayScale}
+                    </Text>
+                  ) : null}
+
+                  {(typeof side.overlayOffsetX !== "undefined" ||
+                    typeof side.overlayOffsetY !== "undefined") ? (
+                    <Text className="txt-small text-ui-fg-subtle">
+                      Overlay Offset: X {side.overlayOffsetX ?? 0}, Y{" "}
+                      {side.overlayOffsetY ?? 0}
                     </Text>
                   ) : null}
                 </div>

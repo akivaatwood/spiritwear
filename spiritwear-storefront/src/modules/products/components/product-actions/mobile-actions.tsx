@@ -10,6 +10,7 @@ import { getProductPrice } from "@lib/util/get-product-price"
 import OptionSelect from "./option-select"
 import { HttpTypes } from "@medusajs/types"
 import { isSimpleProduct } from "@lib/util/product"
+import { OverlayLibrary } from "@modules/products/components/mascot-overlay-provider"
 
 type MobileActionsProps = {
   product: HttpTypes.StoreProduct
@@ -21,6 +22,8 @@ type MobileActionsProps = {
   isAdding?: boolean
   show: boolean
   optionsDisabled: boolean
+  overlayLibrary: OverlayLibrary
+  setOverlayLibrary: (library: OverlayLibrary) => void
 }
 
 const MobileActions: React.FC<MobileActionsProps> = ({
@@ -33,6 +36,8 @@ const MobileActions: React.FC<MobileActionsProps> = ({
   isAdding,
   show,
   optionsDisabled,
+  overlayLibrary,
+  setOverlayLibrary,
 }) => {
   const { state, open, close } = useToggleState()
 
@@ -172,6 +177,26 @@ const MobileActions: React.FC<MobileActionsProps> = ({
                     </button>
                   </div>
                   <div className="bg-white px-6 py-12">
+                    <div className="mb-6 flex flex-col gap-y-2">
+                      <label className="text-sm font-medium">
+                        Artwork Library
+                      </label>
+                      <select
+                        value={overlayLibrary}
+                        onChange={(e) =>
+                          setOverlayLibrary(
+                            e.target.value as "organization" | "design"
+                          )
+                        }
+                        className="w-full rounded border px-3 py-2 text-sm"
+                      >
+                        <option value="organization">
+                          Organization Mascots
+                        </option>
+                        <option value="design">Pre-designed Overlays</option>
+                      </select>
+                    </div>
+
                     {(product.variants?.length ?? 0) > 1 && (
                       <div className="flex flex-col gap-y-6">
                         {(product.options || []).map((option) => {

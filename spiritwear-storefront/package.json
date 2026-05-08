@@ -7,8 +7,8 @@
   "keywords": [
     "medusa-storefront"
   ],
- "scripts": {
-  "dev": "next dev --turbopack",
+  "scripts": {
+ "dev": "next dev --turbopack -p 8000",
   "build": "next build",
   "start": "next start",
   "lint": "next lint",

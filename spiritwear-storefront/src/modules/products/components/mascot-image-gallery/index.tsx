@@ -6,6 +6,7 @@ import {
   mascotOverlayConstants,
   useMascotOverlay,
 } from "../mascot-overlay-provider"
+import { useOverlayOptions } from "../overlay-options"
 
 type Props = {
   images: Array<{
@@ -14,7 +15,7 @@ type Props = {
   }>
 }
 
-type DragTarget = "mascot" | "text"
+type DragTarget = "overlay" | "text"
 
 type DragState = {
   target: DragTarget
@@ -51,7 +52,10 @@ function getTouchDistance(touches: TouchList) {
 export default function MascotImageGallery({ images }: Props) {
   const {
     overlay,
+    overlayLibrary,
     setActiveSide,
+    isSelected,
+    toggleOverlay,
     setOffset,
     setScale,
     setTextOffset,
@@ -61,6 +65,7 @@ export default function MascotImageGallery({ images }: Props) {
   const [dragState, setDragState] = useState<DragState | null>(null)
   const overlayImageRef = useRef<HTMLImageElement | null>(null)
   const textOverlayRef = useRef<HTMLDivElement | null>(null)
+  const { overlays, loading } = useOverlayOptions(overlayLibrary)
 
   const selectedImage = images?.[selectedIndex]
   const selectedSide = getSideForIndex(selectedIndex)
@@ -85,7 +90,7 @@ export default function MascotImageGallery({ images }: Props) {
 
       setActiveSide(dragState.side)
 
-      if (dragState.target === "mascot") {
+      if (dragState.target === "overlay") {
         setOffset(dragState.startOffsetX + deltaX, dragState.startOffsetY + deltaY)
         return
       }
@@ -114,7 +119,7 @@ export default function MascotImageGallery({ images }: Props) {
 
         setActiveSide(dragState.side)
 
-        if (dragState.target === "mascot") {
+        if (dragState.target === "overlay") {
           setScale(nextScale)
           return
         }
@@ -140,7 +145,7 @@ export default function MascotImageGallery({ images }: Props) {
 
       setActiveSide(dragState.side)
 
-      if (dragState.target === "mascot") {
+      if (dragState.target === "overlay") {
         setOffset(dragState.startOffsetX + deltaX, dragState.startOffsetY + deltaY)
         return
       }
@@ -172,12 +177,12 @@ export default function MascotImageGallery({ images }: Props) {
 
   useEffect(() => {
     setDragState(null)
-  }, [selectedIndex, selectedSideState?.mascot?.image_url, selectedSideState?.text?.value])
+  }, [selectedIndex, selectedSideState?.imageOverlay?.image_url, selectedSideState?.text?.value])
 
   useEffect(() => {
     const overlayImage = overlayImageRef.current
 
-    if (!overlayImage || !selectedSide || !selectedSideState?.mascot?.image_url) {
+    if (!overlayImage || !selectedSide || !selectedSideState?.imageOverlay?.image_url) {
       return
     }
 
@@ -198,7 +203,7 @@ export default function MascotImageGallery({ images }: Props) {
     }
   }, [
     selectedSide,
-    selectedSideState?.mascot?.image_url,
+    selectedSideState?.imageOverlay?.image_url,
     selectedSideState?.scale,
     setActiveSide,
     setScale,
@@ -245,7 +250,7 @@ export default function MascotImageGallery({ images }: Props) {
     setActiveSide(selectedSide)
 
     setDragState({
-      target: "mascot",
+      target: "overlay",
       side: selectedSide,
       mode: "drag",
       startX: event.clientX,
@@ -284,7 +289,7 @@ export default function MascotImageGallery({ images }: Props) {
       setActiveSide(selectedSide)
 
       setDragState({
-        target: "mascot",
+        target: "overlay",
         side: selectedSide,
         mode: "pinch",
         startX: 0,
@@ -307,7 +312,7 @@ export default function MascotImageGallery({ images }: Props) {
     setActiveSide(selectedSide)
 
     setDragState({
-      target: "mascot",
+      target: "overlay",
       side: selectedSide,
       mode: "drag",
       startX: touch.clientX,
@@ -367,13 +372,13 @@ export default function MascotImageGallery({ images }: Props) {
           <img src={selectedImage.url} alt="" className="w-full object-contain" />
         ) : null}
 
-        {selectedSide && selectedSideState?.mascot?.image_url ? (
+        {selectedSide && selectedSideState?.imageOverlay?.image_url ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <img
-              src={selectedSideState.mascot.image_url}
-              alt={selectedSideState.mascot.mascot_name}
+              src={selectedSideState.imageOverlay.image_url}
+              alt={selectedSideState.imageOverlay.overlay_name}
               className={`max-h-[70%] max-w-[70%] object-contain opacity-90 ${
-                dragState?.target === "mascot" ? "cursor-grabbing" : "cursor-grab"
+                dragState?.target === "overlay" ? "cursor-grabbing" : "cursor-grab"
               }`}
               style={{
                 transform: `translate(${selectedSideState.offsetX}px, ${selectedSideState.offsetY}px) scale(${selectedSideState.scale})`,
@@ -420,13 +425,13 @@ export default function MascotImageGallery({ images }: Props) {
       </div>
 
       {!!images?.length && (
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
           {images.map((image, index) => (
             <button
               key={image.id || image.url || index}
               type="button"
               onClick={() => setSelectedIndex(index)}
-              className={`rounded border p-1 ${
+              className={`shrink-0 rounded border p-1 ${
                 selectedIndex === index ? "border-black" : "border-gray-300"
               }`}
             >
@@ -435,6 +440,47 @@ export default function MascotImageGallery({ images }: Props) {
           ))}
         </div>
       )}
+
+      <div className="mt-6 border-t pt-4">
+        <div className="mb-3 text-sm font-medium">
+          Available {overlayLibrary === "design" ? "Overlays" : "Mascots"}
+        </div>
+
+        {loading ? (
+          <div className="text-sm text-gray-500">Loading image choices...</div>
+        ) : overlays.length ? (
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {overlays.map((overlayOption) => {
+              const active = isSelected(overlayOption)
+
+              return (
+                <button
+                  key={`${overlayOption.overlay_type}-${overlayOption.overlay_name}-${overlayOption.image_url}`}
+                  type="button"
+                  onClick={() => toggleOverlay(overlayOption)}
+                  className={`flex w-24 shrink-0 items-center justify-center rounded border bg-white p-2 ${
+                    active ? "border-black bg-gray-50" : "border-gray-300"
+                  }`}
+                >
+                  <div className="flex h-20 w-20 items-center justify-center rounded bg-white">
+                    <img
+                      src={overlayOption.image_url}
+                      alt={overlayOption.overlay_name}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">
+            {overlayLibrary === "design"
+              ? "No pre-designed overlays are available yet."
+              : "No mascot images are available for the selected organization."}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

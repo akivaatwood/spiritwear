@@ -36,7 +36,8 @@ export default function ProductActions({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { getLineItemMetadata } = useMascotOverlay()
+  const { getLineItemMetadata, overlayLibrary, setOverlayLibrary } =
+    useMascotOverlay()
 
   const [options, setOptions] = useState<Record<string, string | undefined>>({})
   const [isAdding, setIsAdding] = useState(false)
@@ -132,6 +133,20 @@ export default function ProductActions({
     <>
       <div className="flex flex-col gap-y-2" ref={actionsRef}>
         <div>
+          <div className="mb-4 flex flex-col gap-y-2">
+            <label className="text-sm font-medium">Artwork Library</label>
+            <select
+              value={overlayLibrary}
+              onChange={(e) =>
+                setOverlayLibrary(e.target.value as "organization" | "design")
+              }
+              className="w-full rounded border px-3 py-2 text-sm"
+            >
+              <option value="organization">Organization Mascots</option>
+              <option value="design">Pre-designed Overlays</option>
+            </select>
+          </div>
+
           {(product.variants?.length ?? 0) > 1 && (
             <div className="flex flex-col gap-y-4">
               {(product.options || []).map((option) => {
@@ -186,6 +201,8 @@ export default function ProductActions({
           isAdding={isAdding}
           show={!inView}
           optionsDisabled={!!disabled || isAdding}
+          overlayLibrary={overlayLibrary}
+          setOverlayLibrary={setOverlayLibrary}
         />
       </div>
     </>

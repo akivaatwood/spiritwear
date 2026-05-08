@@ -88,6 +88,8 @@ export default function SchoolsPage({
   function handleSchoolSelect(school: SchoolType) {
     const selection: SelectedSchool = {
       id: school.id,
+      organization_name: school.school_name,
+      organization_type: "school",
       school_name: school.school_name,
       slug: school.slug,
       city_id: selectedCity,
