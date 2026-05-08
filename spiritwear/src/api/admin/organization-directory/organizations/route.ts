@@ -1,5 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { SCHOOL_DIRECTORY_MODULE } from "../../../../modules/school-directory"
+import { ORGANIZATION_DIRECTORY_MODULE } from "../../../../modules/school-directory"
 import {
   getOrganizationName,
   hydrateOrganization,
@@ -7,7 +7,7 @@ import {
 } from "../../../../modules/school-directory/organization-utils"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const service = req.scope.resolve(SCHOOL_DIRECTORY_MODULE)
+  const service = req.scope.resolve(ORGANIZATION_DIRECTORY_MODULE)
 
   const city_id = req.query.city_id as string | undefined
   const level = req.query.level as string | undefined
@@ -17,29 +17,34 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const filters: Record<string, any> = {}
   if (city_id) filters.city_id = city_id
   if (level) filters.level = level
-  if (organization_type) filters.organization_type = normalizeOrganizationType(organization_type)
+  if (organization_type) {
+    filters.organization_type = normalizeOrganizationType(organization_type)
+  }
 
-  let schools = await service.listSchools(filters, {
+  let organizations = await service.listSchools(filters, {
     order: { school_name: "ASC" },
   })
 
   if (q) {
-    schools = schools.filter((school: any) =>
-      String(getOrganizationName(school)).toLowerCase().includes(q) ||
-      String(school.slug || "").toLowerCase().includes(q)
+    organizations = organizations.filter((organization: any) =>
+      String(getOrganizationName(organization)).toLowerCase().includes(q) ||
+      String(organization.slug || "").toLowerCase().includes(q)
     )
   }
 
-  const schoolsWithDetails = await Promise.all(
-    schools.map(async (school: any) => {
+  const organizationsWithDetails = await Promise.all(
+    organizations.map(async (organization: any) => {
       const [colors, mascots, cities] = await Promise.all([
-        service.listSchoolColors({ school_id: school.id }, { order: { sort_order: "ASC" } }),
-        service.listSchoolMascots({ school_id: school.id }),
-        service.listCities({ id: school.city_id }),
+        service.listSchoolColors(
+          { school_id: organization.id },
+          { order: { sort_order: "ASC" } }
+        ),
+        service.listSchoolMascots({ school_id: organization.id }),
+        service.listCities({ id: organization.city_id }),
       ])
 
       return {
-        ...hydrateOrganization(school),
+        ...hydrateOrganization(organization),
         colors,
         mascots,
         city: cities[0] || null,
@@ -47,17 +52,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     })
   )
 
-  res.json({ schools: schoolsWithDetails })
+  res.json({ organizations: organizationsWithDetails })
 }
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const service = req.scope.resolve(SCHOOL_DIRECTORY_MODULE)
+  const service = req.scope.resolve(ORGANIZATION_DIRECTORY_MODULE)
 
   const body = req.body as Record<string, any>
   const {
     city_id,
-    school_name,
     organization_name,
+    school_name,
     organization_type,
     slug,
     level,
@@ -84,7 +89,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     })
   }
 
-  const [school] = await service.createSchools([
+  const [organization] = await service.createSchools([
     {
       city_id,
       school_name: normalizedName,
@@ -103,7 +108,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const payload = colors
       .filter((c: any) => c?.color_name)
       .map((c: any, index: number) => ({
-        school_id: school.id,
+        school_id: organization.id,
         color_name: c.color_name,
         hex_value: c.hex_value || null,
         is_primary: !!c.is_primary,
@@ -119,7 +124,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const payload = mascots
       .filter((m: any) => m?.mascot_name)
       .map((m: any) => ({
-        school_id: school.id,
+        school_id: organization.id,
         mascot_name: m.mascot_name,
         image_url: m.image_url || null,
         is_primary: !!m.is_primary,
@@ -131,5 +136,5 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  res.status(201).json({ organization: hydrateOrganization(school), school: hydrateOrganization(school) })
+  res.status(201).json({ organization: hydrateOrganization(organization) })
 }

@@ -9,5 +9,12 @@ export default defineMiddlewares({
                 sizeLimit: "10mb",
             },
         },
+        {
+            matcher: "/admin/organization-directory/upload-mascot",
+            method: "POST",
+            bodyParser: {
+                sizeLimit: "10mb",
+            },
+        },
     ],
 })

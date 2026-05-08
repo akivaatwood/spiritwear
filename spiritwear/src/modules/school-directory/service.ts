@@ -8,6 +8,7 @@ import { SchoolMascot } from "./models/school-mascot"
 import { SchoolTeam } from "./models/school-team"
 import { SchoolTeamColor } from "./models/school-team-color"
 import { SchoolTeamMascot } from "./models/school-team-mascot"
+import { DesignOverlay } from "./models/design-overlay"
 
 class SchoolDirectoryModuleService extends MedusaService({
   State,
@@ -19,6 +20,7 @@ class SchoolDirectoryModuleService extends MedusaService({
   SchoolTeam,
   SchoolTeamColor,
   SchoolTeamMascot,
+  DesignOverlay,
 }) {}
 
 export default SchoolDirectoryModuleService

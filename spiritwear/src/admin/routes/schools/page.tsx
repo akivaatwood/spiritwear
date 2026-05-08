@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { MagnifyingGlass } from "@medusajs/icons"
 
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
 function parseLinesToColors(text: string) {
   return text
     .split("\n")
@@ -63,25 +71,33 @@ const SchoolsAdminPage = () => {
   const [cities, setCities] = useState<any[]>([])
   const [sports, setSports] = useState<any[]>([])
   const [teams, setTeams] = useState<any[]>([])
+  const [designOverlays, setDesignOverlays] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingDesignOverlay, setSavingDesignOverlay] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [teamUploading, setTeamUploading] = useState(false)
+  const [designUploading, setDesignUploading] = useState(false)
   const [creatingState, setCreatingState] = useState(false)
   const [creatingCity, setCreatingCity] = useState(false)
+  const [creatingSport, setCreatingSport] = useState(false)
   const [selectedStateId, setSelectedStateId] = useState("")
   const [search, setSearch] = useState("")
   const [editingSchoolId, setEditingSchoolId] = useState<string | null>(null)
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
+  const [editingDesignOverlayId, setEditingDesignOverlayId] = useState<string | null>(null)
   const [deletingSchool, setDeletingSchool] = useState(false)
   const [deletingTeam, setDeletingTeam] = useState(false)
+  const [deletingDesignOverlay, setDeletingDesignOverlay] = useState(false)
   const [newStateName, setNewStateName] = useState("")
   const [newStateCode, setNewStateCode] = useState("")
   const [newCityName, setNewCityName] = useState("")
+  const [newSportName, setNewSportName] = useState("")
 
   const emptyForm = {
+    organization_type: "school",
     city_id: "",
-    school_name: "",
+    organization_name: "",
     slug: "",
     level: "high_school",
     website_url: "",
@@ -107,8 +123,20 @@ const SchoolsAdminPage = () => {
     uploadedMascotUrl: "",
   }
 
+  const emptyDesignOverlayForm = {
+    name: "",
+    slug: "",
+    category: "",
+    image_url: "",
+    is_active: true,
+    sort_order: 0,
+  }
+
   const [form, setForm] = useState(emptyForm)
   const [teamForm, setTeamForm] = useState(emptyTeamForm)
+  const [designOverlayForm, setDesignOverlayForm] = useState(
+    emptyDesignOverlayForm
+  )
 
   async function loadStates() {
     const res = await fetch(`/admin/school-directory/states`, {
@@ -136,15 +164,62 @@ const SchoolsAdminPage = () => {
     setSports(data.sports || [])
   }
 
+  async function loadDesignOverlays() {
+    const res = await fetch(`/admin/design-overlays`, {
+      credentials: "include",
+    })
+    const data = await res.json()
+    setDesignOverlays(data.design_overlays || [])
+  }
+
+  async function createSport() {
+    if (!newSportName.trim()) {
+      alert("Sport name is required")
+      return
+    }
+
+    setCreatingSport(true)
+
+    try {
+      const payload = {
+        sport_name: newSportName.trim(),
+        slug: slugify(newSportName),
+      }
+
+      const res = await fetch(`/admin/school-directory/sports`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to create sport")
+      }
+
+      await loadSports()
+      setTeamForm((prev) => ({ ...prev, sport_id: data.sport.id }))
+      setNewSportName("")
+    } catch (e: any) {
+      alert(e?.message || "Failed to create sport")
+    } finally {
+      setCreatingSport(false)
+    }
+  }
+
   async function loadSchools(query?: string) {
     setLoading(true)
     const url = query
-      ? `/admin/school-directory/schools?q=${encodeURIComponent(query)}`
-      : `/admin/school-directory/schools`
+      ? `/admin/organization-directory/organizations?q=${encodeURIComponent(query)}`
+      : `/admin/organization-directory/organizations`
 
     const res = await fetch(url, { credentials: "include" })
     const data = await res.json()
-    setSchools(data.schools || [])
+    setSchools(data.organizations || [])
     setLoading(false)
   }
 
@@ -164,6 +239,7 @@ const SchoolsAdminPage = () => {
     loadCities()
     loadSchools()
     loadSports()
+    loadDesignOverlays()
   }, [])
 
   useEffect(() => {
@@ -177,7 +253,9 @@ const SchoolsAdminPage = () => {
     const q = search.trim().toLowerCase()
     if (!q) return schools
     return schools.filter((school) =>
-      String(school.school_name || "").toLowerCase().includes(q) ||
+      String(school.organization_name || school.school_name || "")
+        .toLowerCase()
+        .includes(q) ||
       String(school.slug || "").toLowerCase().includes(q)
     )
   }, [schools, search])
@@ -195,17 +273,23 @@ const SchoolsAdminPage = () => {
     setTeamForm(emptyTeamForm)
   }
 
+  function resetDesignOverlayForm() {
+    setEditingDesignOverlayId(null)
+    setDesignOverlayForm(emptyDesignOverlayForm)
+  }
+
   async function startEdit(schoolId: string) {
-    const res = await fetch(`/admin/school-directory/schools/${schoolId}`, {
+    const res = await fetch(`/admin/organization-directory/organizations/${schoolId}`, {
       credentials: "include",
     })
     const data = await res.json()
-    const school = data.school
+    const school = data.organization
 
     setEditingSchoolId(school.id)
     setForm({
+      organization_type: school.organization_type || "school",
       city_id: school.city_id || "",
-      school_name: school.school_name || "",
+      organization_name: school.organization_name || school.school_name || "",
       slug: school.slug || "",
       level: school.level || "high_school",
       website_url: school.website_url || "",
@@ -241,6 +325,24 @@ const SchoolsAdminPage = () => {
       mascotsText: mascotsToText(team.mascots || []),
       uploadedMascotName: "",
       uploadedMascotUrl: "",
+    })
+  }
+
+  async function startEditDesignOverlay(id: string) {
+    const res = await fetch(`/admin/design-overlays/${id}`, {
+      credentials: "include",
+    })
+    const data = await res.json()
+    const designOverlay = data.design_overlay
+
+    setEditingDesignOverlayId(designOverlay.id)
+    setDesignOverlayForm({
+      name: designOverlay.name || "",
+      slug: designOverlay.slug || "",
+      category: designOverlay.category || "",
+      image_url: designOverlay.image_url || "",
+      is_active: designOverlay.is_active !== false,
+      sort_order: Number(designOverlay.sort_order || 0),
     })
   }
 
@@ -328,7 +430,7 @@ const SchoolsAdminPage = () => {
   async function uploadImage(file: File) {
     const contentBase64 = await fileToBase64(file)
 
-    const res = await fetch(`/admin/school-directory/upload-mascot`, {
+    const res = await fetch(`/admin/organization-directory/upload-mascot`, {
       method: "POST",
       credentials: "include",
       headers: {
@@ -404,7 +506,7 @@ const SchoolsAdminPage = () => {
         }
       })
     } catch (e: any) {
-      console.error("School mascot upload failed:", e)
+      console.error("Organization mascot upload failed:", e)
       alert(e?.message || "Unknown upload error")
     } finally {
       setUploading(false)
@@ -460,15 +562,35 @@ const SchoolsAdminPage = () => {
     }
   }
 
+  async function handleDesignOverlayUpload(file: File) {
+    setDesignUploading(true)
+
+    try {
+      const uploadedUrl = await uploadImage(file)
+
+      setDesignOverlayForm((prev) => ({
+        ...prev,
+        image_url: uploadedUrl,
+      }))
+    } catch (e: any) {
+      console.error("Design overlay upload failed:", e)
+      alert(e?.message || "Unknown upload error")
+    } finally {
+      setDesignUploading(false)
+    }
+  }
+
   async function saveSchool(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
 
     const payload = {
+      organization_type: form.organization_type,
       city_id: form.city_id,
-      school_name: form.school_name,
+      organization_name: form.organization_name,
+      school_name: form.organization_name,
       slug: form.slug,
-      level: form.level,
+      level: form.organization_type === "school" ? form.level : null,
       website_url: form.website_url || null,
       primary_contact_email: form.primary_contact_email || null,
       physical_address: form.physical_address || null,
@@ -478,8 +600,8 @@ const SchoolsAdminPage = () => {
     }
 
     const url = editingSchoolId
-      ? `/admin/school-directory/schools/${editingSchoolId}`
-      : `/admin/school-directory/schools`
+      ? `/admin/organization-directory/organizations/${editingSchoolId}`
+      : `/admin/organization-directory/organizations`
 
     const method = editingSchoolId ? "PATCH" : "POST"
 
@@ -508,7 +630,7 @@ const SchoolsAdminPage = () => {
     e.preventDefault()
 
     if (!editingSchoolId) {
-      alert("Save or select a school first")
+      alert("Save or select an organization first")
       return
     }
 
@@ -548,18 +670,59 @@ const SchoolsAdminPage = () => {
     resetTeamForm()
   }
 
+  async function saveDesignOverlay(e: React.FormEvent) {
+    e.preventDefault()
+    setSavingDesignOverlay(true)
+
+    try {
+      const payload = {
+        name: designOverlayForm.name.trim(),
+        slug: designOverlayForm.slug.trim() || slugify(designOverlayForm.name),
+        category: designOverlayForm.category.trim() || null,
+        image_url: designOverlayForm.image_url || null,
+        is_active: designOverlayForm.is_active,
+        sort_order: Number(designOverlayForm.sort_order || 0),
+      }
+
+      const url = editingDesignOverlayId
+        ? `/admin/design-overlays/${editingDesignOverlayId}`
+        : `/admin/design-overlays`
+      const method = editingDesignOverlayId ? "PATCH" : "POST"
+
+      const res = await fetch(url, {
+        method,
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to save design overlay")
+      }
+
+      await loadDesignOverlays()
+      resetDesignOverlayForm()
+    } catch (e: any) {
+      alert(e?.message || "Failed to save design overlay")
+    } finally {
+      setSavingDesignOverlay(false)
+    }
+  }
+
   async function deleteSchool() {
     if (!editingSchoolId) return
 
     const confirmed = window.confirm(
-      "Delete this school and all of its teams, colors, and mascots?"
+      "Delete this organization and all of its groups, colors, and mascots?"
     )
     if (!confirmed) return
 
     setDeletingSchool(true)
 
     try {
-      const res = await fetch(`/admin/school-directory/schools/${editingSchoolId}`, {
+      const res = await fetch(`/admin/organization-directory/organizations/${editingSchoolId}`, {
         method: "DELETE",
         credentials: "include",
       })
@@ -567,13 +730,13 @@ const SchoolsAdminPage = () => {
       const data = await res.json().catch(() => ({}))
 
       if (!res.ok) {
-        throw new Error(data?.message || "Failed to delete school")
+        throw new Error(data?.message || "Failed to delete organization")
       }
 
       await loadSchools()
       resetForm()
     } catch (e: any) {
-      alert(e?.message || "Failed to delete school")
+      alert(e?.message || "Failed to delete organization")
     } finally {
       setDeletingSchool(false)
     }
@@ -610,11 +773,40 @@ const SchoolsAdminPage = () => {
     }
   }
 
+  async function deleteDesignOverlay() {
+    if (!editingDesignOverlayId) return
+
+    const confirmed = window.confirm("Delete this pre-designed overlay?")
+    if (!confirmed) return
+
+    setDeletingDesignOverlay(true)
+
+    try {
+      const res = await fetch(`/admin/design-overlays/${editingDesignOverlayId}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to delete design overlay")
+      }
+
+      await loadDesignOverlays()
+      resetDesignOverlayForm()
+    } catch (e: any) {
+      alert(e?.message || "Failed to delete design overlay")
+    } finally {
+      setDeletingDesignOverlay(false)
+    }
+  }
+
   return (
     <div style={{ padding: 24, maxWidth: 1400, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>Schools</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>Organizations</h1>
       <p style={{ marginBottom: 24, color: "#555" }}>
-        View, create, edit schools, and manage teams, team colors, and team mascot images.
+        View, create, and edit schools, fire departments, and police departments. School organizations can also manage teams, team colors, and team mascot images.
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24 }}>
@@ -627,16 +819,16 @@ const SchoolsAdminPage = () => {
               marginBottom: 12,
             }}
           >
-            <h2 style={{ fontSize: 20, fontWeight: 600 }}>School List</h2>
+            <h2 style={{ fontSize: 20, fontWeight: 600 }}>Organization List</h2>
             <button onClick={() => resetForm()} style={{ padding: "8px 12px" }}>
-              New School
+              New Organization
             </button>
           </div>
 
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search schools..."
+            placeholder="Search organizations..."
             style={{ width: "100%", padding: 10, marginBottom: 12 }}
           />
 
@@ -655,10 +847,16 @@ const SchoolsAdminPage = () => {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                     <div>
-                      <div style={{ fontWeight: 600 }}>{school.school_name}</div>
+                      <div style={{ fontWeight: 600 }}>{school.organization_name || school.school_name}</div>
                       <div style={{ fontSize: 13, color: "#666" }}>{school.slug}</div>
                       <div style={{ fontSize: 13, color: "#666" }}>
-                        {school.level === "high_school" ? "High School" : "College"}
+                        {school.organization_type === "fire_department"
+                          ? "Fire Department"
+                          : school.organization_type === "police_department"
+                            ? "Police Department"
+                            : school.level === "high_school"
+                              ? "High School"
+                              : "College"}
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -669,7 +867,7 @@ const SchoolsAdminPage = () => {
                   </div>
                 </div>
               ))}
-              {!filteredSchools.length && <div>No schools found.</div>}
+              {!filteredSchools.length && <div>No organizations found.</div>}
             </div>
           )}
         </div>
@@ -677,7 +875,7 @@ const SchoolsAdminPage = () => {
         <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <h2 style={{ fontSize: 20, fontWeight: 600 }}>
-              {editingSchoolId ? "Edit School" : "Add School"}
+              {editingSchoolId ? "Edit Organization" : "Add Organization"}
             </h2>
             {editingSchoolId && (
               <button
@@ -686,7 +884,7 @@ const SchoolsAdminPage = () => {
                 disabled={deletingSchool}
                 style={{ padding: "8px 12px", color: "white", background: "#b91c1c", borderRadius: 6 }}
               >
-                {deletingSchool ? "Deleting..." : "Delete School"}
+                {deletingSchool ? "Deleting..." : "Delete Organization"}
               </button>
             )}
           </div>
@@ -763,13 +961,34 @@ const SchoolsAdminPage = () => {
             </div>
 
             <label>
-              <div style={{ marginBottom: 6 }}>School Name</div>
+              <div style={{ marginBottom: 6 }}>Organization Name</div>
               <input
                 required
-                value={form.school_name}
-                onChange={(e) => setForm((prev) => ({ ...prev, school_name: e.target.value }))}
+                value={form.organization_name}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, organization_name: e.target.value }))
+                }
                 style={{ width: "100%", padding: 10 }}
               />
+            </label>
+
+            <label>
+              <div style={{ marginBottom: 6 }}>Category</div>
+              <select
+                value={form.organization_type}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    organization_type: e.target.value,
+                    level: e.target.value === "school" ? prev.level : "",
+                  }))
+                }
+                style={{ width: "100%", padding: 10 }}
+              >
+                <option value="school">School</option>
+                <option value="fire_department">Fire Department</option>
+                <option value="police_department">Police Department</option>
+              </select>
             </label>
 
             <label>
@@ -782,17 +1001,19 @@ const SchoolsAdminPage = () => {
               />
             </label>
 
-            <label>
-              <div style={{ marginBottom: 6 }}>Level</div>
-              <select
-                value={form.level}
-                onChange={(e) => setForm((prev) => ({ ...prev, level: e.target.value }))}
-                style={{ width: "100%", padding: 10 }}
-              >
-                <option value="high_school">High School</option>
-                <option value="college">College</option>
-              </select>
-            </label>
+            {form.organization_type === "school" && (
+              <label>
+                <div style={{ marginBottom: 6 }}>Level</div>
+                <select
+                  value={form.level}
+                  onChange={(e) => setForm((prev) => ({ ...prev, level: e.target.value }))}
+                  style={{ width: "100%", padding: 10 }}
+                >
+                  <option value="high_school">High School</option>
+                  <option value="college">College</option>
+                </select>
+              </label>
+            )}
 
             <label>
               <div style={{ marginBottom: 6 }}>Website URL</div>
@@ -822,7 +1043,7 @@ const SchoolsAdminPage = () => {
             </label>
 
             <label>
-              <div style={{ marginBottom: 6 }}>School Colors</div>
+              <div style={{ marginBottom: 6 }}>Organization Colors</div>
               <textarea
                 value={form.colorsText}
                 onChange={(e) => setForm((prev) => ({ ...prev, colorsText: e.target.value }))}
@@ -832,7 +1053,7 @@ const SchoolsAdminPage = () => {
             </label>
 
             <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 12, display: "grid", gap: 10 }}>
-              <div style={{ fontWeight: 600 }}>Upload School Mascot Image</div>
+              <div style={{ fontWeight: 600 }}>Upload Organization Mascot Image</div>
 
               <input
                 value={form.uploadedMascotName}
@@ -857,7 +1078,7 @@ const SchoolsAdminPage = () => {
               {form.uploadedMascotUrl ? (
                 <img
                   src={form.uploadedMascotUrl}
-                  alt="Uploaded school mascot"
+                  alt="Uploaded organization mascot"
                   style={{
                     width: 160,
                     height: 160,
@@ -872,7 +1093,7 @@ const SchoolsAdminPage = () => {
             </div>
 
             <label>
-              <div style={{ marginBottom: 6 }}>School Mascots</div>
+              <div style={{ marginBottom: 6 }}>Organization Mascots</div>
               <textarea
                 value={form.mascotsText}
                 onChange={(e) => setForm((prev) => ({ ...prev, mascotsText: e.target.value }))}
@@ -892,7 +1113,7 @@ const SchoolsAdminPage = () => {
 
             <div style={{ display: "flex", gap: 12 }}>
               <button type="submit" disabled={saving} style={{ padding: "10px 14px" }}>
-                {saving ? "Saving..." : editingSchoolId ? "Save School" : "Create School"}
+                {saving ? "Saving..." : editingSchoolId ? "Save Organization" : "Create Organization"}
               </button>
               <button type="button" onClick={resetForm} style={{ padding: "10px 14px" }}>
                 Clear
@@ -924,7 +1145,13 @@ const SchoolsAdminPage = () => {
           </div>
 
           {!editingSchoolId ? (
-            <div style={{ color: "#666" }}>Select or save a school first to manage teams.</div>
+            <div style={{ color: "#666" }}>
+              Select or save a school organization first to manage teams.
+            </div>
+          ) : form.organization_type !== "school" ? (
+            <div style={{ color: "#666" }}>
+              Team management is available for school organizations. Fire and police organizations can use the main organization colors and mascots.
+            </div>
           ) : (
             <>
               <div style={{ marginBottom: 16, display: "grid", gap: 10 }}>
@@ -975,6 +1202,37 @@ const SchoolsAdminPage = () => {
                     ))}
                   </select>
                 </label>
+
+                <div
+                  style={{
+                    border: "1px solid #e5e5e5",
+                    borderRadius: 10,
+                    padding: 12,
+                    display: "grid",
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ fontWeight: 600 }}>Add Global Sport</div>
+                  <input
+                    placeholder="Sport name (e.g. Basketball)"
+                    value={newSportName}
+                    onChange={(e) => setNewSportName(e.target.value)}
+                    style={{ width: "100%", padding: 10 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={createSport}
+                    disabled={creatingSport}
+                    style={{ padding: "10px 14px" }}
+                  >
+                    {creatingSport ? "Creating Sport..." : "Add Sport"}
+                  </button>
+                  {!sports.length ? (
+                    <div style={{ fontSize: 13, color: "#666" }}>
+                      No sports exist yet. Add one here, then select it for teams across all school organizations.
+                    </div>
+                  ) : null}
+                </div>
 
                 <label>
                   <div style={{ marginBottom: 6 }}>Team Name</div>
@@ -1111,18 +1369,262 @@ const SchoolsAdminPage = () => {
           )}
         </div>
       </div>
+
+      <div style={{ marginTop: 32 }}>
+        <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>
+          Pre-designed Product Overlays
+        </h2>
+        <p style={{ marginBottom: 20, color: "#555" }}>
+          Manage global overlay artwork that can be used on any product, independent of the selected organization.
+        </p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+          <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <h3 style={{ fontSize: 20, fontWeight: 600 }}>Overlay Library</h3>
+              <button
+                type="button"
+                onClick={resetDesignOverlayForm}
+                style={{ padding: "8px 12px" }}
+              >
+                New Overlay
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              {designOverlays.map((overlay) => (
+                <div
+                  key={overlay.id}
+                  style={{
+                    border: "1px solid #e5e5e5",
+                    borderRadius: 10,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <div style={{ display: "flex", gap: 12 }}>
+                      {overlay.image_url ? (
+                        <img
+                          src={overlay.image_url}
+                          alt={overlay.name}
+                          style={{
+                            width: 72,
+                            height: 72,
+                            objectFit: "contain",
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                            padding: 6,
+                            background: "#fff",
+                          }}
+                        />
+                      ) : null}
+
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{overlay.name}</div>
+                        <div style={{ fontSize: 13, color: "#666" }}>{overlay.slug}</div>
+                        <div style={{ fontSize: 13, color: "#666" }}>
+                          {overlay.category || "Uncategorized"}
+                          {overlay.is_active === false ? " · Inactive" : ""}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => startEditDesignOverlay(overlay.id)}
+                        style={{ padding: "8px 12px" }}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {!designOverlays.length && (
+                <div style={{ color: "#666" }}>No pre-designed overlays yet.</div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <h3 style={{ fontSize: 20, fontWeight: 600 }}>
+                {editingDesignOverlayId ? "Edit Overlay" : "Add Overlay"}
+              </h3>
+              {editingDesignOverlayId ? (
+                <button
+                  type="button"
+                  onClick={deleteDesignOverlay}
+                  disabled={deletingDesignOverlay}
+                  style={{ padding: "8px 12px", color: "white", background: "#b91c1c", borderRadius: 6 }}
+                >
+                  {deletingDesignOverlay ? "Deleting..." : "Delete Overlay"}
+                </button>
+              ) : null}
+            </div>
+
+            <form onSubmit={saveDesignOverlay} style={{ display: "grid", gap: 12 }}>
+              <label>
+                <div style={{ marginBottom: 6 }}>Overlay Name</div>
+                <input
+                  required
+                  value={designOverlayForm.name}
+                  onChange={(e) =>
+                    setDesignOverlayForm((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                      slug: prev.slug || slugify(e.target.value),
+                    }))
+                  }
+                  style={{ width: "100%", padding: 10 }}
+                />
+              </label>
+
+              <label>
+                <div style={{ marginBottom: 6 }}>Slug</div>
+                <input
+                  required
+                  value={designOverlayForm.slug}
+                  onChange={(e) =>
+                    setDesignOverlayForm((prev) => ({ ...prev, slug: e.target.value }))
+                  }
+                  style={{ width: "100%", padding: 10 }}
+                />
+              </label>
+
+              <label>
+                <div style={{ marginBottom: 6 }}>Category</div>
+                <input
+                  value={designOverlayForm.category}
+                  onChange={(e) =>
+                    setDesignOverlayForm((prev) => ({ ...prev, category: e.target.value }))
+                  }
+                  placeholder="e.g. Vintage, Patriotic, Spirit"
+                  style={{ width: "100%", padding: 10 }}
+                />
+              </label>
+
+              <label>
+                <div style={{ marginBottom: 6 }}>Sort Order</div>
+                <input
+                  type="number"
+                  value={designOverlayForm.sort_order}
+                  onChange={(e) =>
+                    setDesignOverlayForm((prev) => ({
+                      ...prev,
+                      sort_order: Number(e.target.value || 0),
+                    }))
+                  }
+                  style={{ width: "100%", padding: 10 }}
+                />
+              </label>
+
+              <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 12, display: "grid", gap: 10 }}>
+                <div style={{ fontWeight: 600 }}>Upload Overlay Image</div>
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    await handleDesignOverlayUpload(file)
+                    e.currentTarget.value = ""
+                  }}
+                />
+
+                {designUploading && <div>Uploading overlay image...</div>}
+
+                {designOverlayForm.image_url ? (
+                  <img
+                    src={designOverlayForm.image_url}
+                    alt="Uploaded design overlay"
+                    style={{
+                      width: 160,
+                      height: 160,
+                      objectFit: "contain",
+                      border: "1px solid #ddd",
+                      borderRadius: 8,
+                      padding: 8,
+                      background: "#fff",
+                    }}
+                  />
+                ) : null}
+              </div>
+
+              <label>
+                <div style={{ marginBottom: 6 }}>Image URL</div>
+                <input
+                  value={designOverlayForm.image_url}
+                  onChange={(e) =>
+                    setDesignOverlayForm((prev) => ({ ...prev, image_url: e.target.value }))
+                  }
+                  style={{ width: "100%", padding: 10 }}
+                />
+              </label>
+
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={designOverlayForm.is_active}
+                  onChange={(e) =>
+                    setDesignOverlayForm((prev) => ({
+                      ...prev,
+                      is_active: e.target.checked,
+                    }))
+                  }
+                />
+                Active
+              </label>
+
+              <div style={{ display: "flex", gap: 12 }}>
+                <button type="submit" disabled={savingDesignOverlay} style={{ padding: "10px 14px" }}>
+                  {savingDesignOverlay
+                    ? "Saving..."
+                    : editingDesignOverlayId
+                      ? "Save Overlay"
+                      : "Create Overlay"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetDesignOverlayForm}
+                  style={{ padding: "10px 14px" }}
+                >
+                  Clear
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
 
 export const config = defineRouteConfig({
-  label: "Schools",
+  label: "Organizations",
   icon: MagnifyingGlass,
   rank: 2,
 })
 
 export const handle = {
-  breadcrumb: () => "Schools",
+  breadcrumb: () => "Organizations",
 }
 
 export default SchoolsAdminPage

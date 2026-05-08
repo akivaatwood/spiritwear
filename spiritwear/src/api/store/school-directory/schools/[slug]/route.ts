@@ -1,5 +1,9 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SCHOOL_DIRECTORY_MODULE } from "../../../../../modules/school-directory"
+import {
+  hydrateGroup,
+  hydrateOrganization,
+} from "../../../../../modules/school-directory/organization-utils"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const service = req.scope.resolve(SCHOOL_DIRECTORY_MODULE)
@@ -36,12 +40,22 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     })
   )
 
+  const organization = hydrateOrganization(school)
+  const groups = teamsWithDetails.map((team) => hydrateGroup(team))
+
   res.json({
-    school: {
-      ...school,
+    organization: {
+      ...organization,
       colors,
       mascots,
-      teams: teamsWithDetails,
+      groups,
+      teams: groups,
+    },
+    school: {
+      ...organization,
+      colors,
+      mascots,
+      teams: groups,
     },
   })
 }

@@ -1,5 +1,5 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { SCHOOL_DIRECTORY_MODULE } from "../../../../../modules/school-directory"
+import { ORGANIZATION_DIRECTORY_MODULE } from "../../../../../modules/school-directory"
 import {
   hydrateGroup,
   hydrateOrganization,
@@ -7,50 +7,48 @@ import {
 } from "../../../../../modules/school-directory/organization-utils"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const service = req.scope.resolve(SCHOOL_DIRECTORY_MODULE)
+  const service = req.scope.resolve(ORGANIZATION_DIRECTORY_MODULE)
   const id = req.params.id
 
-  const schools = await service.listSchools({ id })
+  const organizations = await service.listSchools({ id })
 
-  if (!schools.length) {
-    return res.status(404).json({ message: "School not found" })
+  if (!organizations.length) {
+    return res.status(404).json({ message: "Organization not found" })
   }
 
-  const school = schools[0]
+  const organization = organizations[0]
 
   const [colors, mascots, teams] = await Promise.all([
-    service.listSchoolColors({ school_id: school.id }, { order: { sort_order: "ASC" } }),
-    service.listSchoolMascots({ school_id: school.id }),
-    service.listSchoolTeams({ school_id: school.id }, { order: { team_name: "ASC" } }),
+    service.listSchoolColors(
+      { school_id: organization.id },
+      { order: { sort_order: "ASC" } }
+    ),
+    service.listSchoolMascots({ school_id: organization.id }),
+    service.listSchoolTeams(
+      { school_id: organization.id },
+      { order: { team_name: "ASC" } }
+    ),
   ])
-
-  const organization = hydrateOrganization(school)
 
   res.json({
     organization: {
-      ...organization,
+      ...hydrateOrganization(organization),
       colors,
       mascots,
       groups: teams.map((team: any) => hydrateGroup(team)),
-      teams: teams.map((team: any) => hydrateGroup(team)),
-    },
-    school: {
-      ...organization,
-      colors,
-      mascots,
       teams: teams.map((team: any) => hydrateGroup(team)),
     },
   })
 }
 
 export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
-  const service = req.scope.resolve(SCHOOL_DIRECTORY_MODULE)
+  const service = req.scope.resolve(ORGANIZATION_DIRECTORY_MODULE)
   const id = req.params.id
   const body = req.body as Record<string, any>
 
-  const schools = await service.listSchools({ id })
-  if (!schools.length) {
-    return res.status(404).json({ message: "School not found" })
+  const organizations = await service.listSchools({ id })
+  if (!organizations.length) {
+    return res.status(404).json({ message: "Organization not found" })
   }
 
   const updates: Record<string, any> = {}
@@ -74,10 +72,13 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const normalizedType = normalizeOrganizationType(
-    updates.organization_type || schools[0].organization_type
+    updates.organization_type || organizations[0].organization_type
   )
   const normalizedName =
-    updates.organization_name || updates.school_name || schools[0].organization_name || schools[0].school_name
+    updates.organization_name ||
+    updates.school_name ||
+    organizations[0].organization_name ||
+    organizations[0].school_name
 
   updates.organization_type = normalizedType
   updates.organization_name = normalizedName
@@ -142,21 +143,18 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
     service.listSchoolMascots({ school_id: id }),
   ])
 
-  const organization = hydrateOrganization(refreshed[0])
-
   res.json({
-    organization: { ...organization, colors, mascots },
-    school: { ...organization, colors, mascots },
+    organization: { ...hydrateOrganization(refreshed[0]), colors, mascots },
   })
 }
 
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
-  const service = req.scope.resolve(SCHOOL_DIRECTORY_MODULE)
+  const service = req.scope.resolve(ORGANIZATION_DIRECTORY_MODULE)
   const id = req.params.id
 
-  const schools = await service.listSchools({ id })
-  if (!schools.length) {
-    return res.status(404).json({ message: "School not found" })
+  const organizations = await service.listSchools({ id })
+  if (!organizations.length) {
+    return res.status(404).json({ message: "Organization not found" })
   }
 
   const schoolTeams = await service.listSchoolTeams({ school_id: id })

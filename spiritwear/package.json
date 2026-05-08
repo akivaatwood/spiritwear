@@ -14,7 +14,6 @@
   ],
   "scripts": {
     "build": "medusa build",
-       "predeploy": "medusa db:migrate",
     "seed": "medusa exec ./src/scripts/seed.ts",
     "start": "medusa start",
     "dev": "medusa develop",
@@ -25,6 +24,7 @@
   "dependencies": {
     "@medusajs/admin-sdk": "2.13.6",
     "@medusajs/cli": "2.13.6",
+    "@medusajs/file-s3": "2.13.6",
     "@medusajs/framework": "2.13.6",
     "@medusajs/medusa": "2.13.6"
   },

@@ -26,6 +26,7 @@ import {
   updateStoresWorkflow,
 } from "@medusajs/medusa/core-flows";
 import { ApiKey } from "../../.medusa/types/query-entry-points";
+import seedSchoolDirectory from "./seed-school-directory";
 
 const updateStoreCurrencies = createWorkflow(
   "update-store-currencies",
@@ -919,4 +920,8 @@ export default async function seedDemoData({ container }: ExecArgs) {
   });
 
   logger.info("Finished seeding inventory levels data.");
+
+  logger.info("Seeding organization directory data...");
+  await seedSchoolDirectory({ container });
+  logger.info("Finished seeding organization directory data.");
 }

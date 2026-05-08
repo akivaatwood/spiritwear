@@ -33,8 +33,31 @@ export default async function seedSchoolDirectory({ container }: ExecArgs) {
     {
       city_id: dallas.id,
       school_name: "Central High School",
+      organization_name: "Central High School",
+      organization_type: "school",
       slug: "central-high-school-dallas-tx",
       level: "high_school",
+      is_active: true,
+    },
+  ])
+
+  await service.createSchools([
+    {
+      city_id: dallas.id,
+      school_name: "Dallas Fire Department",
+      organization_name: "Dallas Fire Department",
+      organization_type: "fire_department",
+      slug: "dallas-fire-department",
+      level: null,
+      is_active: true,
+    },
+    {
+      city_id: dallas.id,
+      school_name: "Dallas Police Department",
+      organization_name: "Dallas Police Department",
+      organization_type: "police_department",
+      slug: "dallas-police-department",
+      level: null,
       is_active: true,
     },
   ])
@@ -105,5 +128,24 @@ export default async function seedSchoolDirectory({ container }: ExecArgs) {
     },
   ])
 
-  console.log("Seeded school directory")
+  await service.createDesignOverlays([
+    {
+      name: "Vintage Script",
+      slug: "vintage-script",
+      category: "Vintage",
+      image_url: "https://medusa-public-images.s3.eu-west-1.amazonaws.com/tee-vintage-front.png",
+      is_active: true,
+      sort_order: 0,
+    },
+    {
+      name: "Patriotic Badge",
+      slug: "patriotic-badge",
+      category: "Patriotic",
+      image_url: "https://medusa-public-images.s3.eu-west-1.amazonaws.com/hoodie-blue-front.png",
+      is_active: true,
+      sort_order: 1,
+    },
+  ])
+
+  console.log("Seeded organization directory")
 }
